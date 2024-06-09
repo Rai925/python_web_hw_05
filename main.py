@@ -3,29 +3,30 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-
 from async_request_timer import request_logger
 
 logging.basicConfig(filename="app.log", level=logging.INFO)
 
 
-async def fetch_exchange_rate(session, date):
-    url = f"https://api.privatbank.ua/p24api/exchange_rates?json&date={date}"
-    try:
-        async with session.get(url) as response:
-            return await response.json()
-    except aiohttp.ClientError as e:
-        logging.error(f"Error fetching exchange rate for date {date}: {e}")
+class ApiPrivatBank:
+    def __init__(self):
+        self.session = aiohttp.ClientSession()
 
+    async def fetch_exchange_rate(self, date):
+        url = f"https://api.privatbank.ua/p24api/exchange_rates?json&date={date}"
+        try:
+            async with self.session.get(url) as response:
+                response.raise_for_status()
+                return await response.json()
+        except aiohttp.ClientError as e:
+            logging.error(f"Error fetching exchange rate for date {date}: {e}")
+            return None
 
-@request_logger
-async def get_exchange_rates(days):
-    async with aiohttp.ClientSession() as session:
+    @request_logger
+    async def get_exchange_rates(self, days):
         today = datetime.now().date()
         tasks = [
-            fetch_exchange_rate(
-                session, (today - timedelta(days=i)).strftime("%d.%m.%Y")
-            )
+            self.fetch_exchange_rate((today - timedelta(days=i)).strftime("%d.%m.%Y"))
             for i in range(days)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -57,10 +58,18 @@ async def get_exchange_rates(days):
 
         return exchange_rates
 
+    async def close_session(self):
+        await self.session.close()
+
 
 async def main(days):
-    exchange_rates = await get_exchange_rates(days)
-    print(json.dumps(exchange_rates, indent=2))
+    exchange = ApiPrivatBank()
+    exchange_rates = await exchange.get_exchange_rates(days)
+    await exchange.close_session()
+    if exchange_rates is not None:
+        print(json.dumps(exchange_rates, indent=2))
+    else:
+        print("Failed to fetch exchange rates. Check the logs for details.")
 
 
 if __name__ == "__main__":
