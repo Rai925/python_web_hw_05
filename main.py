@@ -4,6 +4,8 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+from async_request_timer import request_logger
+
 logging.basicConfig(filename="app.log", level=logging.INFO)
 
 
@@ -16,6 +18,7 @@ async def fetch_exchange_rate(session, date):
         logging.error(f"Error fetching exchange rate for date {date}: {e}")
 
 
+@request_logger
 async def get_exchange_rates(days):
     async with aiohttp.ClientSession() as session:
         today = datetime.now().date()
